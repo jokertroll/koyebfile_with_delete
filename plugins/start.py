@@ -66,10 +66,21 @@ async def start_command(client: Client, message: Message):
                 print(f"Error copying message: {e}")
                 pass
 
+        # warning_msg = await client.send_message(
+        #     chat_id=message.from_user.id,
+        #     text=f"<b>❗ IMPORTANT ❗</b>\n\nThis file will be deleted in {formatted_delete_time}.\n\n📌 Please save or forward it elsewhere.",
+        # )
         warning_msg = await client.send_message(
             chat_id=message.from_user.id,
-            text=f"<b>❗ IMPORTANT ❗</b>\n\nThis file will be deleted in {formatted_delete_time}.\n\n📌 Please save or forward it elsewhere.",
+            text=(
+                "⚠️ <b>Attention!</b> ⚠️\n\n"
+                "⏳ <b>Above files will be automatically deleted in</b> {formatted_delete_time}.\n\n"
+                "💾 <b>Make sure to save or forward it before it's gone!</b> 🚀\n\n"
+                "📌 <i>Tip: Download now to avoid losing access.</i>"
+                ),
+            parse_mode=ParseMode.HTML
         )
+
 
         asyncio.create_task(delete_files(sent_messages, client, warning_msg))
         return
@@ -105,6 +116,7 @@ async def delete_files(messages, client, warning_message):
             print(f"Error deleting message {msg.id}: {e}")
 
     try:
-        await warning_message.edit_text("Your file has been successfully deleted ✅")
+        # await warning_message.edit_text("<b><i>Your files has been successfully deleted ✅<i></b>")
+        await warning_message.edit_text("<b><i>Your files have been successfully deleted ✅</i></b>")
     except Exception as e:
         print(f"Error editing warning message: {e}")
