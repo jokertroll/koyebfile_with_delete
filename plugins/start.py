@@ -108,18 +108,29 @@ async def start_command(client: Client, message: Message):
         return
 
 async def delete_files(messages, client, warning_message):
-    await asyncio.sleep(FILE_AUTO_DELETE)
-    for msg in messages:
-        try:
-            await client.delete_messages(chat_id=msg.chat.id, message_ids=[msg.id])
-        except Exception as e:
-            print(f"Error deleting message {msg.id}: {e}")
-
     try:
-        # await warning_message.edit_text("<b><i>Your files has been successfully deleted ✅<i></b>")
-        await warning_message.edit_text("<b><i>Your files have been successfully deleted ✅</i></b>")
+        print(f"Scheduled file deletion in {FILE_AUTO_DELETE} seconds...")
+        await asyncio.sleep(FILE_AUTO_DELETE)  # Wait before deleting
+
+        for msg in messages:
+            try:
+                await client.delete_messages(chat_id=msg.chat.id, message_ids=msg.id)
+                print(f"Deleted message {msg.id}")
+            except Exception as e:
+                print(f"Error deleting message {msg.id}: {e}")
+
+        try:
+            await warning_message.edit_text(
+                "🗑️ <b>Your files have been automatically deleted!</b> ✅\n\n"
+                "🔔 To keep files permanently, upgrade to <b>Premium Mode</b> 🚀 \n\n <b>To Know More use /premium</b>",
+                parse_mode=ParseMode.HTML
+            )
+            print("Updated warning message after deletion")
+        except Exception as e:
+            print(f"Error editing warning message: {e}")
+
     except Exception as e:
-        print(f"Error editing warning message: {e}")
+        print(f"Unexpected error in delete_files(): {e}")
 
 #=====================================================================================##
 
@@ -128,6 +139,26 @@ WAIT_MSG = """"<b>Processing ...</b>"""
 REPLY_ERROR = """<code>Use this command as a replay to any telegram message with out any spaces.</code>"""
 
 #=====================================================================================##
+
+@Bot.on_message(filters.command("premium") & filters.private)
+async def premium_plans(client: Client, message: Message):
+    plans_text = (
+        "💎 <b>Premium Membership Plans</b> 💎\n\n"
+        "🔹 <b>₹5</b> - <i>1 Day Access</i>\n"
+        "🔹 <b>₹25</b> - <i>28 Days Access</i>\n"
+        "🔹 <b>₹50</b> - <i>3 Months Access (28 + 28 + 28 + 6 Extra Days)</i>\n\n"
+        "🔥 <b>Benefits of Premium:</b>\n"
+        "✅ No file auto-deletion\n"
+        "✅ Faster response time\n"
+        "✅ Priority support\n\n"
+        "💳 <b>Contact Admin to Upgrade</b> 🚀"
+    )
+
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 Contact Admin", url="https://t.me/kmadminsbot")]
+    ])
+
+    await message.reply_text(plans_text, parse_mode=ParseMode.HTML, reply_markup=buttons)
 
     
     
