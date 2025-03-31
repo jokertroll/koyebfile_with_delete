@@ -23,6 +23,9 @@ KEEP_ALIVE_URL =  os.environ.get("KEEP_ALIVE_URL", "")
 #Your db channel Id
 CHANNEL_ID = int(os.environ.get("CHANNEL_ID", ""))
 
+#File Auto Delete
+FILE_AUTO_DELETE = int(os.environ.get("FILE_AUTO_DELETE", "45")) # auto delete in seconds
+
 #OWNER ID
 OWNER_ID = int(os.environ.get("OWNER_ID", ""))
 
