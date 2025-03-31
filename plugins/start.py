@@ -54,7 +54,7 @@ async def start_command(client: Client, message: Message):
 
         for msg in messages:
             caption = CUSTOM_CAPTION.format(previouscaption=msg.caption.html if msg.caption else "", filename=msg.document.file_name) if CUSTOM_CAPTION and msg.document else (msg.caption.html if msg.caption else "")
-            reply_markup = None if DISABLE_CHANNEL_BUTTON else msg.reply_markup
+            reply_markup = None
             try:
                 sent_msg = await msg.copy(chat_id=message.from_user.id, caption=caption, parse_mode=ParseMode.HTML, reply_markup=reply_markup, protect_content=PROTECT_CONTENT)
                 sent_messages.append(sent_msg)
@@ -74,19 +74,27 @@ async def start_command(client: Client, message: Message):
         asyncio.create_task(delete_files(sent_messages, client, warning_msg))
         return
     else:
-        reply_markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🧠 Help", callback_data="help"), InlineKeyboardButton("🔰 About", callback_data="about")]
-        ])
-        await message.reply_photo(
-            caption=START_MSG.format(
-                first=message.from_user.first_name,
-                last=message.from_user.last_name,
-                username=f'@{message.from_user.username}' if message.from_user.username else None,
-                mention=message.from_user.mention,
-                id=message.from_user.id
-            ),
-            reply_markup=reply_markup,
+        reply_markup = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton("😊 About Me", callback_data = "about"),
+                    InlineKeyboardButton("🔒 Close", callback_data = "close")
+                ]
+            ]
         )
+        await message.reply_text(
+            text = START_MSG.format(
+                first = message.from_user.first_name,
+                last = message.from_user.last_name,
+                username = None if not message.from_user.username else '@' + message.from_user.username,
+                mention = message.from_user.mention,
+                id = message.from_user.id
+            ),
+            reply_markup = reply_markup,
+            disable_web_page_preview = True,
+            quote = True
+        )
+        return
 
 async def delete_files(messages, client, warning_message):
     await asyncio.sleep(FILE_AUTO_DELETE)
