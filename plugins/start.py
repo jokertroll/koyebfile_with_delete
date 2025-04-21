@@ -143,13 +143,13 @@ async def start_command(client: Client, message: Message):
     
 async def delete_files(messages, client, warning_message):
     try:
-        print(f"Scheduled file deletion in {FILE_AUTO_DELETE} seconds...")
+        # print(f"Scheduled file deletion in {FILE_AUTO_DELETE} seconds...")
         await asyncio.sleep(FILE_AUTO_DELETE)  # Wait before deleting
 
         for msg in messages:
             try:
                 await client.delete_messages(chat_id=msg.chat.id, message_ids=msg.id)
-                print(f"Deleted message {msg.id}")
+                # print(f"Deleted message {msg.id}")
             except Exception as e:
                 print(f"Error deleting message {msg.id}: {e}")
 
