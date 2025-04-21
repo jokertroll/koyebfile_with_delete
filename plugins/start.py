@@ -1,11 +1,15 @@
 import os
+import random
+import string
 import asyncio
 import humanize
 from pyrogram import Client, filters
 from pyrogram.enums import ParseMode
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated
-
+from plugins.premium import is_premium, grant_temporary_premium
+from plugins import admin
+from pymongo import MongoClient
 from bot import Bot
 from config import *
 from helper_func import subscribed, encode, decode, get_messages
@@ -13,6 +17,10 @@ from database.database import add_user, del_user, full_userbase, present_user
 
 file_delete_duration = FILE_AUTO_DELETE  # Time in seconds for auto-delete
 formatted_delete_time = humanize.naturaldelta(file_delete_duration)
+
+client = MongoClient(DB_URI)
+db = client[DB_NAME]
+premium_users = db.premium_users
 
 @Bot.on_message(filters.command('start') & filters.private & subscribed)
 async def start_command(client: Client, message: Message):
@@ -23,6 +31,41 @@ async def start_command(client: Client, message: Message):
         except:
             pass
     text = message.text
+
+    # **Check for Premium Trial Activation**
+    if len(text) > 7:
+        try:
+            base64_string = text.split(" ", 1)[1]
+        except:
+            return
+        
+        if base64_string.startswith("trial-"):
+            trial_token = base64_string[6:]
+
+            # Validate trial token in the database
+            user_data = premium_users.find_one({"user_id": user_id, "trial_token": trial_token})
+
+            if not user_data:
+                return await message.reply("❌ Invalid or expired trial token!")
+
+            # Activate the trial
+            expiry_time = datetime.utcnow() + timedelta(hours=3)
+            premium_users.update_one(
+                {"user_id": user_id},
+                {"$set": {"is_premium": True, "trial_used": True, "expiry_date": expiry_time}}
+            )
+
+            await message.reply("✅ Your 3-hour Premium trial has been activated!")
+
+            # Notify Admins
+            for admin in ADMINS:
+                try:
+                    await client.send_message(admin, f"✅ User {message.from_user.mention} ({user_id}) has activated their premium trial!")
+                except:
+                    pass
+            
+            return  # Prevent further execution if it's a trial activation
+
     if len(text) > 7:
         try:
             base64_string = text.split(" ", 1)[1]
@@ -65,23 +108,14 @@ async def start_command(client: Client, message: Message):
             except Exception as e:
                 print(f"Error copying message: {e}")
                 pass
-
-        # warning_msg = await client.send_message(
-        #     chat_id=message.from_user.id,
-        #     text=f"<b>❗ IMPORTANT ❗</b>\n\nThis file will be deleted in {formatted_delete_time}.\n\n📌 Please save or forward it elsewhere.",
-        # )
-        warning_msg = await client.send_message(
-            chat_id=message.from_user.id,
-            text=(
-                "⚠️ <b>Attention!</b> ⚠️\n\n"
-                "⏳ <b>Above files will be automatically deleted in</b> {formatted_delete_time}.\n\n"
-                "💾 <b>Make sure to save or forward it before it's gone!</b> 🚀\n\n"
-                "📌 <i>Tip: Download now to avoid losing access.</i>"
-                ),
-            parse_mode=ParseMode.HTML
-        )
-
-
+        if not is_premium(user_id):
+            warning_msg = await client.send_message(
+             chat_id=message.from_user.id,
+             text=f"⏳ <b>Above files will be automatically deleted in</b> {formatted_delete_time}.\n\n"
+             )
+            asyncio.create_task(delete_files(sent_messages, client, warning_msg))
+        else:
+            warning_msg = None  # Avoid referencing an unassigned variable      
         asyncio.create_task(delete_files(sent_messages, client, warning_msg))
         return
     else:
@@ -106,7 +140,7 @@ async def start_command(client: Client, message: Message):
             quote = True
         )
         return
-
+    
 async def delete_files(messages, client, warning_message):
     try:
         print(f"Scheduled file deletion in {FILE_AUTO_DELETE} seconds...")
@@ -139,19 +173,26 @@ WAIT_MSG = """"<b>Processing ...</b>"""
 REPLY_ERROR = """<code>Use this command as a replay to any telegram message with out any spaces.</code>"""
 
 #=====================================================================================##
+@Bot.on_message(filters.command("tryPremium") & filters.private)
+async def try_premium(client, message):
+    user_id = message.from_user.id
+    temp_token = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+    grant_temporary_premium(user_id, 3)
+    await message.reply(f"🎉 You've been granted 3 hours of Premium access! Your token: `{temp_token}` (No action needed, it's auto-validated)", parse_mode=ParseMode.MARKDOWN)
 
 @Bot.on_message(filters.command("premium") & filters.private)
 async def premium_plans(client: Client, message: Message):
     plans_text = (
         "💎 <b>Premium Membership Plans</b> 💎\n\n"
-        "🔹 <b>₹5</b> - <i>1 Day Access</i>\n"
-        "🔹 <b>₹25</b> - <i>28 Days Access</i>\n"
-        "🔹 <b>₹50</b> - <i>3 Months Access (28 + 28 + 28 + 6 Extra Days)</i>\n\n"
-        "🔥 <b>Benefits of Premium:</b>\n"
-        "✅ No file auto-deletion\n"
-        "✅ Faster response time\n"
-        "✅ Priority support\n\n"
-        "💳 <b>Contact Admin to Upgrade</b> 🚀"
+        "🔹 <b>COMING SOON</b> - <i>Until then /join our Channels</i>\n\n"
+        # "🔹 <b>₹5</b> - <i>1 Day Access</i>\n"
+        # "🔹 <b>₹25</b> - <i>28 Days Access</i>\n"
+        # "🔹 <b>₹50</b> - <i>3 Months Access (28 + 28 + 28 + 6 Extra Days)</i>\n\n"
+        # "🔥 <b>Benefits of Premium:</b>\n"
+        # "✅ No file auto-deletion\n"
+        # "✅ Faster response time\n"
+        # "✅ Priority support\n\n"
+        # "💳 <b>Contact Admin to Upgrade</b> 🚀"
     )
 
     buttons = InlineKeyboardMarkup([
