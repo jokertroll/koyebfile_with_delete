@@ -111,7 +111,7 @@ async def start_command(client: Client, message: Message):
         if not is_premium(user_id):
             warning_msg = await client.send_message(
              chat_id=message.from_user.id,
-             text=f"⏳ <b>Above files will be automatically deleted in</b> {formatted_delete_time}.\n\n"
+             text=f"⏳ <b>Above files will be automatically deleted in</b> {formatted_delete_time}.\n\n <b>Please forward Files to your friends/saved meassages before its too late</b>"
              )
             asyncio.create_task(delete_files(sent_messages, client, warning_msg))
         else:
