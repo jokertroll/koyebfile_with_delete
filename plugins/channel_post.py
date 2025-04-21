@@ -8,7 +8,11 @@ from config import ADMINS, CHANNEL_ID, DISABLE_CHANNEL_BUTTON
 from helper_func import encode
 
 # 🔹 Handles private messages from admin (to create post + generate shareable link)
-@Bot.on_message(filters.private & filters.user(ADMINS) & ~filters.command(['start','users','broadcast','batch','genlink','stats','join','premium']))
+admin_commands = ['start', 'users', 'broadcast', 'batch', 'genlink', 'stats', 'join', 'try_premium',
+                  'music', 'premium', 'addpremium', 'listpremium', 'mypremium', 'extendpremium',
+                  'revokepremium', 'trackPromo', 'generatePromo', 'resetTrial','adminHelp']
+
+@Bot.on_message(filters.private & filters.user(ADMINS) & ~filters.command(admin_commands))
 async def channel_post(client: Client, message: Message):
     reply_text = await message.reply_text("Please Wait...!", quote=True)
 
