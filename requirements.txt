@@ -8,3 +8,6 @@ dnspython
 # --- For-Web-Response ------- #
 aiohttp
 humanize
+pytz
+yt-dlp
+requests
