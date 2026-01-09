@@ -10,7 +10,8 @@ from helper_func import encode
 # 🔹 Handles private messages from admin (to create post + generate shareable link)
 admin_commands = ['start', 'users', 'broadcast', 'batch', 'genlink', 'stats', 'join', 'try_premium',
                   'music', 'premium', 'addpremium', 'listpremium', 'mypremium', 'extendpremium',
-                  'revokepremium', 'trackPromo', 'generatePromo', 'resetTrial','adminHelp','put','delete','update']
+                  'revokepremium', 'trackPromo', 'generatePromo', 'resetTrial','adminHelp','put','delete','update',
+                  'deleteseries', 'updateseries', 'puts']
 
 @Bot.on_message(filters.private & filters.user(ADMINS) & ~filters.command(admin_commands))
 async def channel_post(client: Client, message: Message):
