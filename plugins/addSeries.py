@@ -106,3 +106,40 @@ async def handle_update_series(client, message):
 
     except Exception as e:
         await message.reply(f"❌ Exception occurred: <code>{html.escape(str(e))}</code>")
+
+# ---------------- Delete Series ----------------
+@Client.on_message(filters.command("deleteseries") & filters.user(ADMINS))
+async def handle_delete_series(client, message):
+    try:
+        # Example command:
+        # /deleteseries -tmdb 257340 [-season 1] [-lang en] [-720p]
+        #/deleteseries -tmdb 257340 -season 1 -lang en -720p
+        parts = message.text.split("-")
+        tmdb_id = int(parts[1].replace("tmdb", "").strip())
+
+        payload = {"tmdbID": tmdb_id, "secret": ADMIN_SECRET}
+
+        for part in parts[2:]:
+            key_value = part.strip().split(maxsplit=1)
+            if len(key_value) == 2:
+                key, value = key_value
+                key = key.lower()
+                if key == "season":
+                    payload["seasonNumber"] = int(value)
+                elif key == "lang":
+                    payload["language"] = value
+                else:
+                    payload["quality"] = key  # e.g., "-720p"
+            elif len(key_value) == 1:
+                # Quality without a value: "-720p"
+                payload["quality"] = key_value[0].lower()
+
+        res = requests.delete(f"{API_BASE}/series/delete", json=payload)
+
+        if res.status_code == 200:
+            await message.reply(f"🗑️ Series/season/quality deleted successfully!\nTMDb ID: {tmdb_id}")
+        else:
+            await message.reply(f"❌ Failed to delete series:\n<code>{res.text}</code>")
+
+    except Exception as e:
+        await message.reply(f"❌ Exception occurred: <code>{html.escape(str(e))}</code>")
