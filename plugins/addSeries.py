@@ -12,18 +12,23 @@ ADMIN_SECRET = "admin"  # must match backend .env
 async def handle_put_series(client, message):
     try:
         # Example command:
-        # /puts -tmdb 257340 -lang en -season 1 -720p https://filelink.mp4
+        # /puts -tmdb 289821 -lang kn -season 1 -480p <link1> -720p <link2> -1080p <link3>
         parts = message.text.split("-")
+
         tmdb_id = int(parts[1].replace("tmdb", "").strip())
         lang = parts[2].replace("lang", "").strip() if "lang" in parts[2] else "en"
         season_number = int(parts[3].replace("season", "").strip())
-        quality_file = parts[4].strip()
 
-        if " " in quality_file:
-            quality, file_link = quality_file.split(maxsplit=1)
-        else:
-            await message.reply("❌ Missing file link for the given quality.")
-            return
+        # Parse all remaining parts as quality + fileLink pairs
+        versions = []
+        for part in parts[4:]:
+            part = part.strip()
+            if " " in part:
+                quality, file_link = part.split(maxsplit=1)
+                versions.append({"quality": quality, "fileLink": file_link})
+            else:
+                await message.reply(f"❌ Invalid format for part: {part}")
+                return
 
         payload = {
             "tmdbID": tmdb_id,
@@ -31,12 +36,11 @@ async def handle_put_series(client, message):
                 {
                     "seasonNumber": season_number,
                     "language": lang,
-                    "versions": [
-                        {"quality": quality, "fileLink": file_link}
-                    ]
+                    "versions": versions,
                 }
             ],
-            "secret": ADMIN_SECRET
+            "title": None,  # optional, backend will fetch TMDb title if not provided
+            "secret": ADMIN_SECRET,
         }
 
         res = requests.post(f"{API_BASE}/series/add", json=payload)
@@ -137,9 +141,25 @@ async def handle_delete_series(client, message):
         res = requests.delete(f"{API_BASE}/series/delete", json=payload)
 
         if res.status_code == 200:
-            await message.reply(f"🗑️ Series/season/quality deleted successfully!\nTMDb ID: {tmdb_id}")
-        else:
-            await message.reply(f"❌ Failed to delete series:\n<code>{res.text}</code>")
+            data = res.json()
+            series = data.get("series", {})
+
+            title = series.get("title", "Unknown")
+            overview = series.get("overview", "")
+            poster_path = series.get("poster_path")
+
+            poster_url = (
+                f"https://image.tmdb.org/t/p/w500{poster_path}"
+                if poster_path else None
+            )
+
+            caption = f"🗑️ <b>{title}</b>\n\n<code>{overview}</code>\n\n✅ Deleted successfully!"
+
+            if poster_url:
+                await client.send_photo(message.chat.id, poster_url, caption=caption)
+            else:
+                await message.reply(caption)
+       
 
     except Exception as e:
         await message.reply(f"❌ Exception occurred: <code>{html.escape(str(e))}</code>")
