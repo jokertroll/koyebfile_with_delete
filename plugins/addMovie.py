@@ -7,15 +7,7 @@ ADMIN_SECRET = "admin"  # must match backend .env
 
 
 def parse_command_flags(text):
-    """
-    Supports:
-    -tmdb 550
-    -f https://file
-    -o f | l
-    -p (pin)
-    -u (unpin)
-    """
-    parts = [p.strip() for p in text.split("-") if p.strip()]
+    tokens = text.split()
 
     data = {
         "tmdbID": None,
@@ -24,30 +16,41 @@ def parse_command_flags(text):
         "pinned": None      # True | False
     }
 
-    for i, part in enumerate(parts):
-        if part.startswith("tmdb"):
-            data["tmdbID"] = int(part.replace("tmdb", "").strip())
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
 
-        elif part == "f" and i + 1 < len(parts):
-            # file link flag
-            if parts[i + 1].startswith("http"):
-                data["fileLink"] = parts[i + 1]
+        if token == "-tmdb" and i + 1 < len(tokens):
+            data["tmdbID"] = int(tokens[i + 1].replace("-", ""))
+            i += 2
+            continue
 
-        elif part == "o" and i + 1 < len(parts):
-            pos = parts[i + 1].lower()
+        if token == "-f" and i + 1 < len(tokens):
+            data["fileLink"] = tokens[i + 1].replace("-", "", 1)
+            i += 2
+            continue
+
+        if token == "-o" and i + 1 < len(tokens):
+            pos = tokens[i + 1].lower()
             if pos in ["f", "l"]:
                 data["position"] = pos
+            i += 2
+            continue
 
-        elif part == "p":
+        if token == "-p":
             data["pinned"] = True
+            i += 1
+            continue
 
-        elif part == "u":
+        if token == "-u":
             data["pinned"] = False
+            i += 1
+            continue
 
-        elif part.startswith("http"):
-            data["fileLink"] = part
+        i += 1
 
     return data
+
 
 
 # ---------------- Add / Put ----------------
