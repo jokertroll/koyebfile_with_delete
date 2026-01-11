@@ -27,19 +27,46 @@ def parse_command_flags(text):
 
     return data
 
+
 # ---------------- Add / Put ----------------
 @Client.on_message(filters.command("put") & filters.user(ADMINS))
 async def handle_put(client, message):
     try:
-        cmd_data = parse_command_flags(message.text)
-        tmdb_id = cmd_data["tmdbID"]
-        file_link = cmd_data["fileLink"]
-        position = cmd_data["position"]
+        # Example command: /pu -tmdb 550 -f -https://filelink.mp4 -o f
+        text = message.text
+
+        # Split flags by " -" (space + dash) for easier parsing
+        parts = text.split(" -")[1:]  # skip the command itself
+
+        cmd_data = {
+            "tmdbID": None,
+            "fileLink": None,
+            "position": "l",  # default last
+        }
+
+        for part in parts:
+            part = part.strip()
+            if part.startswith("tmdb"):
+                cmd_data["tmdbID"] = int(part.replace("tmdb", "").strip())
+            elif part.startswith("f") and part[1:].startswith("http"):
+                # In case someone types "-f -https://..." without spaces
+                cmd_data["fileLink"] = part[1:].strip()
+            elif part.startswith("http"):
+                cmd_data["fileLink"] = part.strip()
+            elif part.startswith("o"):
+                pos = part.replace("o", "").strip().lower()
+                if pos in ["f", "l"]:
+                    cmd_data["position"] = pos
+
+        # Validate required fields
+        if not cmd_data["tmdbID"] or not cmd_data["fileLink"]:
+            await message.reply("❌ Invalid command! Make sure to include -tmdb and -fileLink.")
+            return
 
         payload = {
-            "tmdbID": tmdb_id,
-            "fileLink": file_link,
-            "position": position,  # include pinned/position
+            "tmdbID": cmd_data["tmdbID"],
+            "fileLink": cmd_data["fileLink"],
+            "position": cmd_data["position"],
             "secret": ADMIN_SECRET
         }
 
@@ -53,7 +80,7 @@ async def handle_put(client, message):
             poster_path = movie.get("poster_path")
             poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
 
-            caption = f"✅ <b>{title}</b>\n\n<code>{overview}</code>\n\n🎬 Posted successfully!"
+            caption = f"✅ <b>{title}</b>\n\n<code>{overview}</code>\n\n🎬 Posted successfully!\nPosition: {cmd_data['position'].upper()}"
             if poster_url:
                 await client.send_photo(chat_id=message.chat.id, photo=poster_url, caption=caption)
             else:
@@ -63,6 +90,7 @@ async def handle_put(client, message):
 
     except Exception as e:
         await message.reply(f"❌ Exception occurred: <code>{str(e)}</code>")
+
 
 # ---------------- Update ----------------
 @Client.on_message(filters.command("update") & filters.user(ADMINS))
