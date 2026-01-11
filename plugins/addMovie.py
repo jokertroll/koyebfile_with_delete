@@ -21,18 +21,18 @@ def parse_command_flags(text):
         token = tokens[i]
 
         if token == "-tmdb" and i + 1 < len(tokens):
-            data["tmdbID"] = int(tokens[i + 1].replace("-", ""))
+            data["tmdbID"] = int(tokens[i + 1])
             i += 2
             continue
 
         if token == "-f" and i + 1 < len(tokens):
-            data["fileLink"] = tokens[i + 1].replace("-", "", 1)
+            data["fileLink"] = tokens[i + 1]
             i += 2
             continue
 
         if token == "-o" and i + 1 < len(tokens):
             pos = tokens[i + 1].lower()
-            if pos in ["f", "l"]:
+            if pos in ("f", "l"):
                 data["position"] = pos
             i += 2
             continue
@@ -52,8 +52,7 @@ def parse_command_flags(text):
     return data
 
 
-
-# ---------------- Add / Put ----------------
+# ---------------- Add / Update (PUT) ----------------
 @Client.on_message(filters.command("put") & filters.user(ADMINS))
 async def handle_put(client, message):
     try:
@@ -72,14 +71,20 @@ async def handle_put(client, message):
             "secret": ADMIN_SECRET
         }
 
-        # optional flags
         if cmd["position"]:
             payload["position"] = cmd["position"]
 
         if cmd["pinned"] is not None:
             payload["pinned"] = cmd["pinned"]
 
+        # 1️⃣ Try ADD
         res = requests.post(f"{API_BASE}/addMovie", json=payload)
+        action = "Added"
+
+        # 2️⃣ If exists → UPDATE
+        if res.status_code != 200 and "already exists" in res.text.lower():
+            res = requests.put(f"{API_BASE}/updateMovie", json=payload)
+            action = "Updated"
 
         if res.status_code == 200:
             movie = res.json().get("movie", {})
@@ -89,16 +94,21 @@ async def handle_put(client, message):
 
             flags = []
             if payload.get("position") == "f":
-                flags.append("📌 First")
-            if payload.get("pinned"):
+                flags.append("⬆ First")
+            elif payload.get("position") == "l":
+                flags.append("⬇ Last")
+
+            if payload.get("pinned") is True:
                 flags.append("⭐ Pinned")
+            elif payload.get("pinned") is False:
+                flags.append("📌 Unpinned")
 
             flag_text = " | ".join(flags)
 
             caption = (
                 f"✅ <b>{title}</b>\n\n"
                 f"<code>{overview}</code>\n\n"
-                f"🎬 Added successfully\n"
+                f"🎬 {action} successfully\n"
                 f"{flag_text}"
             )
 
@@ -116,6 +126,7 @@ async def handle_put(client, message):
 
     except Exception as e:
         await message.reply(f"❌ Exception:\n<code>{str(e)}</code>")
+
 
 
 # ---------------- Update Command ----------------
