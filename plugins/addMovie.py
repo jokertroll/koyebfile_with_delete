@@ -1,202 +1,133 @@
 import requests
+import html
 from pyrogram import Client, filters
 from config import ADMINS
 
 API_BASE = "https://christian-erminia-abhisworkspace-82b29324.koyeb.app/api"
-ADMIN_SECRET = "admin"  # must match backend .env
+ADMIN_SECRET = "admin"
+
+MAX_OVERVIEW = 900
 
 
-def parse_command_flags(text):
-    tokens = text.split()
-
-    data = {
-        "tmdbID": None,
-        "fileLink": None,
-        "position": None,   # f | l
-        "pinned": None      # True | False
-    }
-
-    i = 0
-    while i < len(tokens):
-        token = tokens[i]
-
-        if token == "-tmdb" and i + 1 < len(tokens):
-            data["tmdbID"] = int(tokens[i + 1])
-            i += 2
-            continue
-
-        if token == "-f" and i + 1 < len(tokens):
-            data["fileLink"] = tokens[i + 1]
-            i += 2
-            continue
-
-        if token == "-o" and i + 1 < len(tokens):
-            pos = tokens[i + 1].lower()
-            if pos in ("f", "l"):
-                data["position"] = pos
-            i += 2
-            continue
-
-        if token == "-p":
-            data["pinned"] = True
-            i += 1
-            continue
-
-        if token == "-u":
-            data["pinned"] = False
-            i += 1
-            continue
-
-        i += 1
-
-    return data
+def safe(text):
+    return html.escape(text or "")
 
 
-# ---------------- Add / Update (PUT) ----------------
+# ---------------- ADD / PUT ----------------
 @Client.on_message(filters.command("put") & filters.user(ADMINS))
 async def handle_put(client, message):
     try:
-        cmd = parse_command_flags(message.text)
+        parts = message.text.split("-")
+        tmdb_id = int(parts[1].replace("tmdb", "").strip())
+        file_link = parts[3].strip()
 
-        if not cmd["tmdbID"] or not cmd["fileLink"]:
-            await message.reply(
-                "❌ Usage:\n"
-                "/put -tmdb 550 -f https://file.mp4 [-o f|l] [-p|-u]"
-            )
-            return
+        res = requests.post(
+            f"{API_BASE}/addMovie",
+            json={"tmdbID": tmdb_id, "fileLink": file_link, "secret": ADMIN_SECRET}
+        )
 
-        payload = {
-            "tmdbID": cmd["tmdbID"],
-            "fileLink": cmd["fileLink"],
-            "secret": ADMIN_SECRET
-        }
-
-        if cmd["position"]:
-            payload["position"] = cmd["position"]
-
-        if cmd["pinned"] is not None:
-            payload["pinned"] = cmd["pinned"]
-
-        # 1️⃣ Try ADD
-        res = requests.post(f"{API_BASE}/addMovie", json=payload)
-        action = "Added"
-
-        # 2️⃣ If exists → UPDATE
-        if res.status_code != 200 and "already exists" in res.text.lower():
-            res = requests.put(f"{API_BASE}/updateMovie", json=payload)
-            action = "Updated"
-
-        if res.status_code == 200:
-            movie = res.json().get("movie", {})
-            title = movie.get("title", "Unknown")
-            overview = movie.get("overview", "No overview available.")
-            poster = movie.get("poster_path")
-
-            flags = []
-            if payload.get("position") == "f":
-                flags.append("⬆ First")
-            elif payload.get("position") == "l":
-                flags.append("⬇ Last")
-
-            if payload.get("pinned") is True:
-                flags.append("⭐ Pinned")
-            elif payload.get("pinned") is False:
-                flags.append("📌 Unpinned")
-
-            flag_text = " | ".join(flags)
-
-            caption = (
-                f"✅ <b>{title}</b>\n\n"
-                f"<code>{overview}</code>\n\n"
-                f"🎬 {action} successfully\n"
-                f"{flag_text}"
+        if res.status_code != 200:
+            return await message.reply(
+                f"❌ Failed to post:\n<code>{safe(res.text)}</code>"
             )
 
-            if poster:
-                await client.send_photo(
-                    message.chat.id,
-                    f"https://image.tmdb.org/t/p/w500{poster}",
-                    caption=caption
-                )
-            else:
-                await message.reply(caption)
+        movie = res.json().get("movie", {})
+        title = safe(movie.get("title", "Unknown"))
+        overview = safe(movie.get("overview", ""))[:MAX_OVERVIEW]
+        poster = movie.get("poster_path")
 
+        caption = (
+            f"✅ <b>{title}</b>\n\n"
+            f"<code>{overview}</code>\n\n"
+            f"🎬 Posted successfully!"
+        )
+
+        if poster:
+            await client.send_photo(
+                message.chat.id,
+                f"https://image.tmdb.org/t/p/w500{poster}",
+                caption=caption
+            )
         else:
-            await message.reply(f"❌ Failed:\n<code>{res.text}</code>")
+            await message.reply(caption)
 
     except Exception as e:
-        await message.reply(f"❌ Exception:\n<code>{str(e)}</code>")
+        await message.reply(f"❌ Exception occurred:\n<code>{safe(str(e))}</code>")
 
 
-
-# ---------------- Update Command ----------------
+# ---------------- UPDATE ----------------
 @Client.on_message(filters.command("update") & filters.user(ADMINS))
 async def handle_update(client, message):
     try:
-        cmd_data = parse_command_flags(message.text)
-        tmdb_id = cmd_data["tmdbID"]
-        file_link = cmd_data["fileLink"]
-        position = cmd_data["position"]
-        pinned = cmd_data["pinned"]
+        parts = message.text.split("-")
+        tmdb_id = int(parts[1].replace("tmdb", "").strip())
+        file_link = parts[3].strip()
 
-        if not tmdb_id:
-            await message.reply("❌ Invalid command! Include -tmdb {tmdbID}.")
-            return
+        res = requests.put(
+            f"{API_BASE}/updateMovie",
+            json={"tmdbID": tmdb_id, "fileLink": file_link, "secret": ADMIN_SECRET}
+        )
 
-        payload = {"tmdbID": tmdb_id, "secret": ADMIN_SECRET}
-        if file_link:
-            payload["fileLink"] = file_link
-        if position:
-            payload["position"] = position
-        if pinned is not None:
-            payload["pinned"] = pinned
+        if res.status_code != 200:
+            return await message.reply(
+                f"❌ Failed to update:\n<code>{safe(res.text)}</code>"
+            )
 
-        res = requests.put(f"{API_BASE}/updateMovie", json=payload)
+        movie = res.json().get("movie", {})
+        title = safe(movie.get("title", "Unknown"))
+        overview = safe(movie.get("overview", ""))[:MAX_OVERVIEW]
+        poster = movie.get("poster_path")
 
-        if res.status_code == 200:
-            data = res.json()
-            movie = data.get("movie", {})
-            title = movie.get("title", "Unknown")
-            poster_path = movie.get("poster_path")
-            poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+        caption = (
+            f"✏️ <b>{title}</b>\n\n"
+            f"<code>{overview}</code>\n\n"
+            f"🎬 Updated successfully!"
+        )
 
-            pin_status = "📌 Pinned" if pinned else "❌ Unpinned" if pinned == False else ""
-            caption = f"✏️ <b>{title}</b> {pin_status}\n\n🎬 Updated successfully!"
-            if poster_url:
-                await client.send_photo(chat_id=message.chat.id, photo=poster_url, caption=caption)
-            else:
-                await message.reply(caption)
+        if poster:
+            await client.send_photo(
+                message.chat.id,
+                f"https://image.tmdb.org/t/p/w500{poster}",
+                caption=caption
+            )
         else:
-            await message.reply(f"❌ Failed to update:\n<code>{res.text}</code>")
+            await message.reply(caption)
 
     except Exception as e:
-        await message.reply(f"❌ Exception occurred: <code>{str(e)}</code>")
+        await message.reply(f"❌ Exception occurred:\n<code>{safe(str(e))}</code>")
 
-# ---------------- Delete Command ----------------
+
+# ---------------- DELETE ----------------
 @Client.on_message(filters.command("delete") & filters.user(ADMINS))
 async def handle_delete(client, message):
     try:
-        cmd_data = parse_command_flags(message.text)
-        tmdb_id = cmd_data["tmdbID"]
+        parts = message.text.split("-")
+        tmdb_id = int(parts[1].replace("tmdb", "").strip())
 
-        if not tmdb_id:
-            await message.reply("❌ Invalid command! Include -tmdb {tmdbID}.")
-            return
+        res = requests.delete(
+            f"{API_BASE}/deleteMovie",
+            json={"tmdbID": tmdb_id, "secret": ADMIN_SECRET}
+        )
 
-        payload = {"tmdbID": tmdb_id, "secret": ADMIN_SECRET}
-        res = requests.delete(f"{API_BASE}/deleteMovie", json=payload)
+        if res.status_code != 200:
+            return await message.reply(
+                f"❌ Failed to delete:\n<code>{safe(res.text)}</code>"
+            )
 
-        if res.status_code == 200:
-            data = res.json()
-            deleted_movie = data.get("movie") or data.get("series")  # depending on backend
-            if deleted_movie:
-                title = deleted_movie.get("title", "Unknown")
-                await message.reply(f"🗑️ Movie <b>{title}</b> deleted successfully!")
-            else:
-                await message.reply("🗑️ Movie deleted successfully!")
+        movie = res.json().get("movie", {})
+        title = safe(movie.get("title", "Unknown"))
+        poster = movie.get("poster_path")
+
+        caption = f"🗑️ <b>{title}</b>\n\nDeleted successfully."
+
+        if poster:
+            await client.send_photo(
+                message.chat.id,
+                f"https://image.tmdb.org/t/p/w500{poster}",
+                caption=caption
+            )
         else:
-            await message.reply(f"❌ Failed to delete:\n<code>{res.text}</code>")
+            await message.reply(caption)
 
     except Exception as e:
-        await message.reply(f"❌ Exception occurred: <code>{str(e)}</code>")
-
+        await message.reply(f"❌ Exception occurred:\n<code>{safe(str(e))}</code>")
