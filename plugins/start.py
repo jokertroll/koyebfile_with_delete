@@ -15,6 +15,7 @@ from config import *
 from plugins.addMovie import *
 from plugins.addSeries import *
 from plugins.addCarousel import *
+from plugins.top10Movies import *
 from helper_func import subscribed, encode, decode, get_messages
 from database.database import add_user, del_user, full_userbase, present_user
 
