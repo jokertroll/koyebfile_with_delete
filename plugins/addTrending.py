@@ -6,7 +6,6 @@ from config import ADMINS
 API_BASE = "https://christian-erminia-abhisworkspace-82b29324.koyeb.app/api"
 ADMIN_SECRET = "admin"  # must match backend .env
 
-
 # ---------------- Helper ----------------
 def parse_trend_flags(text):
     """
@@ -41,7 +40,6 @@ def parse_trend_flags(text):
 
     return data
 
-
 # ---------------- /trend ADD OR UPDATE ----------------
 @Client.on_message(filters.command("trend") & filters.user(ADMINS))
 async def handle_trend(client, message):
@@ -49,19 +47,16 @@ async def handle_trend(client, message):
         cmd = parse_trend_flags(message.text)
 
         if not cmd["tmdbID"] or cmd["trendingOrder"] is None:
-            await message.reply(
-                "❌ Usage:\n/trend -tmdb 550 -p 1"
-            )
+            await message.reply("❌ Usage:\n/trend -tmdb 550 -p 1")
             return
 
         payload = {
             "tmdbID": cmd["tmdbID"],
-            "trending": {"isTrending": True, "trendingOrder": cmd["trendingOrder"]},
-            "secret": ADMIN_SECRET
+            "trendingOrder": cmd["trendingOrder"]
         }
 
-        # Try ADD or UPDATE trending
-        res = requests.put(f"{API_BASE}/updateMovie", json=payload)
+        # Use new trending API endpoint
+        res = requests.post(f"{API_BASE}/movies/trending/add", json=payload)
 
         if res.status_code == 200:
             movie = res.json().get("movie", {})
@@ -74,61 +69,27 @@ async def handle_trend(client, message):
     except Exception as e:
         await message.reply(f"❌ Exception occurred:\n<code>{str(e)}</code>")
 
-
-# ---------------- /trendu UPDATE trending order ----------------
-@Client.on_message(filters.command("trendu") & filters.user(ADMINS))
-async def handle_trendu(client, message):
-    try:
-        cmd = parse_trend_flags(message.text)
-
-        if not cmd["tmdbID"] or cmd["trendingOrder"] is None:
-            await message.reply(
-                "❌ Usage:\n/trendu -tmdb 550 -p 4"
-            )
-            return
-
-        payload = {
-            "tmdbID": cmd["tmdbID"],
-            "trending": {"isTrending": True, "trendingOrder": cmd["trendingOrder"]},
-            "secret": ADMIN_SECRET
-        }
-
-        res = requests.put(f"{API_BASE}/updateMovie", json=payload)
-
-        if res.status_code == 200:
-            movie = res.json().get("movie", {})
-            title = movie.get("title", "Unknown")
-            caption = f"✏️ Updated trending for <b>{title}</b> to position {cmd['trendingOrder']} ✅"
-            await message.reply(caption)
-        else:
-            await message.reply(f"❌ Failed to update trending:\n<code>{res.text}</code>")
-
-    except Exception as e:
-        await message.reply(f"❌ Exception occurred:\n<code>{str(e)}</code>")
-
-
 # ---------------- /deltrend DELETE trending ----------------
 @Client.on_message(filters.command("deltrend") & filters.user(ADMINS))
 async def handle_deltrend(client, message):
     try:
-        tokens = message.text.split()
-        if "-tmdb" not in tokens:
+        cmd = parse_trend_flags(message.text)
+        if not cmd["tmdbID"]:
             await message.reply("❌ Usage:\n/deltrend -tmdb 550")
             return
 
-        tmdb_id = int(tokens[tokens.index("-tmdb") + 1])
+        payload = {"tmdbID": cmd["tmdbID"]}
 
-        # Set trending to false
-        payload = {"tmdbID": tmdb_id, "trending": {"isTrending": False}, "secret": ADMIN_SECRET}
-
-        res = requests.put(f"{API_BASE}/updateMovie", json=payload)
+        # Use new trending remove API
+        res = requests.post(f"{API_BASE}/movies/trending/remove", json=payload)
 
         if res.status_code == 200:
             movie = res.json().get("movie", {})
             title = movie.get("title", "Unknown")
-            await message.reply(f"🗑️ <b>{title}</b> removed from trending successfully ✅")
+            caption = f"🗑️ <b>{title}</b>\n\nRemoved from trending successfully!"
+            await message.reply(caption)
         else:
-            await message.reply(f"❌ Failed to delete trending:\n<code>{res.text}</code>")
+            await message.reply(f"❌ Failed to remove trending:\n<code>{res.text}</code>")
 
     except Exception as e:
         await message.reply(f"❌ Exception occurred:\n<code>{str(e)}</code>")
