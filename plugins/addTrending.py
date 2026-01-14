@@ -52,8 +52,10 @@ async def handle_trend(client, message):
 
         payload = {
             "tmdbID": cmd["tmdbID"],
-            "trendingOrder": cmd["trendingOrder"]
+            "trendingOrder": cmd["trendingOrder"],
+            "secret": ADMIN_SECRET  # <-- add this
         }
+
 
         # Use new trending API endpoint
         res = requests.post(f"{API_BASE}/movies/trending/add", json=payload)
@@ -78,7 +80,10 @@ async def handle_deltrend(client, message):
             await message.reply("❌ Usage:\n/deltrend -tmdb 550")
             return
 
-        payload = {"tmdbID": cmd["tmdbID"]}
+        payload = {
+            "tmdbID": cmd["tmdbID"],
+            "secret": ADMIN_SECRET 
+            }
 
         # Use new trending remove API
         res = requests.post(f"{API_BASE}/movies/trending/remove", json=payload)
