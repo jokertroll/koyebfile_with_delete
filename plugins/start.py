@@ -12,6 +12,7 @@ from plugins import admin
 from pymongo import MongoClient
 from bot import Bot
 from config import *
+from plugins.insta import *
 from plugins.addMovie import *
 from plugins.addSeries import *
 from plugins.addCarousel import *
