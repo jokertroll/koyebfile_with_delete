@@ -65,6 +65,7 @@ async def handle_put_series(client, message):
         await message.reply(f"❌ Exception occurred: <code>{html.escape(str(e))}</code>")
 
 # ---------------- Update Series ----------------
+"""
 @Client.on_message(filters.command("updateseries") & filters.user(ADMINS))
 async def handle_update_series(client, message):
     try:
@@ -110,6 +111,45 @@ async def handle_update_series(client, message):
 
     except Exception as e:
         await message.reply(f"❌ Exception occurred: <code>{html.escape(str(e))}</code>")
+"""
+@Client.on_message(filters.command("updateseries") & filters.user(ADMINS))
+async def handle_update_series(client, message):
+    try:
+        parts = message.text.split("-")
+
+        tmdb_id = int(parts[1].replace("tmdb", "").strip())
+        lang = parts[2].replace("lang", "").strip()
+        season_number = int(parts[3].replace("season", "").strip())
+
+        # all quality parts start from index 4
+        quality_parts = parts[4:]
+
+        for qp in quality_parts:
+            qp = qp.strip()
+            if " " not in qp:
+                continue
+
+            quality, file_link = qp.split(maxsplit=1)
+
+            payload = {
+                "tmdbID": tmdb_id,
+                "seasonNumber": season_number,
+                "language": lang,
+                "quality": quality,
+                "fileLink": file_link,
+                "secret": ADMIN_SECRET
+            }
+
+            res = requests.put(f"{API_BASE}/series/update", json=payload)
+
+            if res.status_code != 200:
+                await message.reply(f"❌ Failed for {quality}:\n<code>{res.text}</code>")
+                return
+
+        await message.reply("✅ All qualities updated successfully!")
+
+    except Exception as e:
+        await message.reply(f"❌ Exception: <code>{html.escape(str(e))}</code>")
 
 # ---------------- Delete Series ----------------
 @Client.on_message(filters.command("deleteseries") & filters.user(ADMINS))
