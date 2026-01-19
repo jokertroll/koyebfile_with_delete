@@ -1,4 +1,3 @@
-# plugins\addUpcoming.py
 import requests
 from pyrogram import Client, filters
 from config import ADMINS
