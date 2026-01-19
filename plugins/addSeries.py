@@ -158,8 +158,8 @@ async def handle_update_series(client, message):
             else:
                 await message.reply(f"❌ Failed to update series:\n<code>{res.text}</code>")
     
-        except Exception as e:
-            await message.reply(f"❌ Exception occurred: <code>{html.escape(str(e))}</code>")
+    except Exception as e:
+        await message.reply(f"❌ Exception occurred: <code>{html.escape(str(e))}</code>")
 
 # ---------------- Delete Series ----------------
 @Client.on_message(filters.command("deleteseries") & filters.user(ADMINS))
