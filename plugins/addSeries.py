@@ -142,14 +142,24 @@ async def handle_update_series(client, message):
 
             res = requests.put(f"{API_BASE}/series/update", json=payload)
 
-            if res.status_code != 200:
-                await message.reply(f"❌ Failed for {quality}:\n<code>{res.text}</code>")
-                return
-
-        await message.reply("✅ All qualities updated successfully!")
-
-    except Exception as e:
-        await message.reply(f"❌ Exception: <code>{html.escape(str(e))}</code>")
+            if res.status_code == 200:
+                data = res.json()
+                series = data.get("series", {})
+                title = series.get("title", "Unknown")
+                overview = series.get("overview", "No overview available.")
+                poster_path = series.get("poster_path")
+                poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+    
+                caption = f"✏️ <b>{title}</b>\n\n<code>{overview}</code>\n\n🎬 Series updated successfully!"
+                if poster_url:
+                    await client.send_photo(chat_id=message.chat.id, photo=poster_url, caption=caption)
+                else:
+                    await message.reply(caption)
+            else:
+                await message.reply(f"❌ Failed to update series:\n<code>{res.text}</code>")
+    
+        except Exception as e:
+            await message.reply(f"❌ Exception occurred: <code>{html.escape(str(e))}</code>")
 
 # ---------------- Delete Series ----------------
 @Client.on_message(filters.command("deleteseries") & filters.user(ADMINS))
