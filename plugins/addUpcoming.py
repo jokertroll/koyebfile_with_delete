@@ -1,4 +1,3 @@
-# plugins\addUpcoming.py
 import requests
 from pyrogram import Client, filters
 from config import ADMINS
@@ -73,12 +72,13 @@ async def handle_upcome(client, message):
         movie = res.json().get("movie", {})
         title = movie.get("title", "Unknown")
         poster = movie.get("poster_path")
+        upcoming = movie.get("upcoming", {})
 
         caption = (
             f"🔥 <b>{title}</b>\n\n"
             f"📈 Added to Upcoming Releases\n"
-            f"<b>Order:</b> {cmd.get('upcomingOrder', 'N/A')}\n"
-            f"<b>OTT Release:</b> {cmd.get('ott_release', 'N/A')}"
+            f"<b>Order:</b> {upcoming.get('upcomingOrder', 'N/A')}\n"
+            f"<b>OTT Release:</b> {upcoming.get('ott_release', 'N/A')}"
         )
 
         if poster:
