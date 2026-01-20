@@ -135,12 +135,12 @@ async def handle_put_hdtv(client, message):
             payload["pinned"] = cmd["pinned"]
 
         # 1️⃣ Try ADD
-        res = requests.post(f"{API_BASE}/addHdtv", json=payload)
+        res = requests.post(f"{API_BASE}/hdtv/add", json=payload)
         action = "Added"
 
         # 2️⃣ If exists → UPDATE
         if res.status_code != 200 and "already exists" in res.text.lower():
-            res = requests.put(f"{API_BASE}/updateHdtv", json=payload)
+            res = requests.put(f"{API_BASE}/hdtv/update", json=payload)
             action = "Updated"
 
         if res.status_code == 200:
@@ -217,7 +217,7 @@ async def handle_put_custom_hdtv(client, message):
         if "-u" in tokens:
             payload["pinned"] = False
 
-        res = requests.post(f"{API_BASE}/addHdtv", json=payload)
+        res = requests.post(f"{API_BASE}/hdtv/add", json=payload)
 
         if res.status_code == 200:
             show = res.json()["show"]
@@ -277,7 +277,7 @@ async def handle_update_hdtv(client, message):
                 idx3 = tokens.index("-poster")
                 payload["customData"]["poster_path"] = tokens[idx3 + 1]
 
-        res = requests.put(f"{API_BASE}/updateHdtv", json=payload)
+        res = requests.put(f"{API_BASE}/hdtv/update", json=payload)
 
         if res.status_code == 200:
             show = res.json().get("show", {})
@@ -307,7 +307,7 @@ async def handle_delete_hdtv(client, message):
         tmdb_id = int(tokens[tokens.index("-tmdb") + 1])
 
         payload = {"tmdbID": tmdb_id, "secret": ADMIN_SECRET}
-        res = requests.delete(f"{API_BASE}/deleteHdtv", json=payload)
+        res = requests.delete(f"{API_BASE}/hdtv/delete", json=payload)
 
         if res.status_code == 200:
             show = res.json().get("show", {})
