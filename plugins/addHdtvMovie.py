@@ -1,5 +1,7 @@
 # plugins\addHdtvMovie.py
 import requests
+import shlex
+from pyrogram.enums import ParseMode
 from pyrogram import Client, filters
 from config import ADMINS
 
@@ -182,79 +184,60 @@ async def handle_put_hdtv(client, message):
 
 
 # ---------------- /putcustomhdtv ----------------
+
 @Client.on_message(filters.command("putcustomhdtv") & filters.user(ADMINS))
 async def handle_put_custom_hdtv(client, message):
     try:
-        # Example usage:
-        # /putcustomhdtv -title "My Show" -overview "Some text" -poster https://img.jpg -f https://file.mp4 [-o f|l] [-p|-u]
+        tokens = shlex.split(message.text)
+        payload = {"secret": ADMIN_SECRET, "customData": {}}
 
-        tokens = message.text.split()
-        payload = {"secret": ADMIN_SECRET}
-
-        # parse title
-        if "-title" in tokens:
-            idx = tokens.index("-title")
-            payload["customData"] = payload.get("customData", {})
-            payload["customData"]["title"] = tokens[idx + 1]
-        else:
+        if "-title" not in tokens:
             await message.reply("❌ Must provide -title")
             return
+        payload["customData"]["title"] = tokens[tokens.index("-title") + 1]
 
-        # parse overview
         if "-overview" in tokens:
-            idx = tokens.index("-overview")
-            payload["customData"]["overview"] = tokens[idx + 1]
+            payload["customData"]["overview"] = tokens[tokens.index("-overview") + 1]
 
-        # parse poster
         if "-poster" in tokens:
-            idx = tokens.index("-poster")
-            payload["customData"]["poster_path"] = tokens[idx + 1]
+            payload["customData"]["poster_path"] = tokens[tokens.index("-poster") + 1]
 
-        # parse file
-        if "-f" in tokens:
-            idx = tokens.index("-f")
-            payload["fileLink"] = tokens[idx + 1]
-        else:
+        if "-f" not in tokens:
             await message.reply("❌ Must provide -f file link")
             return
+        payload["fileLink"] = tokens[tokens.index("-f") + 1]
 
-        # position
         if "-o" in tokens:
-            idx = tokens.index("-o")
-            pos = tokens[idx + 1].lower()
+            pos = tokens[tokens.index("-o") + 1].lower()
             if pos in ("f", "l"):
                 payload["position"] = pos
 
-        # pinned
         if "-p" in tokens:
             payload["pinned"] = True
         if "-u" in tokens:
             payload["pinned"] = False
 
-        # POST request
         res = requests.post(f"{API_BASE}/addHdtv", json=payload)
-        action = "Added"
 
         if res.status_code == 200:
-            show = res.json().get("show", {})
-            title = show.get("title", "Unknown")
-            overview = show.get("overview", "No overview available.")
-            poster = show.get("poster_path")
+            show = res.json()["show"]
 
             caption = (
-                f"📺 <b>{title}</b>\n\n"
-                f"<code>{overview}</code>\n\n"
-                f"{action} successfully"
+                f"📺 <b>{show['title']}</b>\n\n"
+                f"{show.get('overview','No overview')}\n\n"
+                f"Added successfully"
             )
 
-            if poster:
+            if show.get("poster_path"):
                 await client.send_photo(
                     message.chat.id,
-                    poster,
-                    caption=caption
+                    show["poster_path"],
+                    caption=caption,
+                    parse_mode=ParseMode.HTML
                 )
             else:
-                await message.reply(caption)
+                await message.reply(caption, parse_mode=ParseMode.HTML)
+
         else:
             await message.reply(f"❌ Failed:\n<code>{res.text}</code>")
 
