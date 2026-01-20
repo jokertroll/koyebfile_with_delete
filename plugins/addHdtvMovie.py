@@ -163,7 +163,7 @@ async def handle_put_hdtv(client, message):
 
             caption = (
                 f"📺 <b>{title}</b>\n\n"
-                f"<code>{overview}</code>\n\n"
+                f"{overview}\n\n"
                 f"{action} successfully\n"
                 f"{flag_text}"
             )
@@ -285,7 +285,7 @@ async def handle_update_hdtv(client, message):
             overview = show.get("overview", "No overview available.")
             poster = show.get("poster_path")
 
-            caption = f"✏️ <b>{title}</b>\n\n<code>{overview}</code>\n\nUpdated successfully"
+            caption = f"✏️ <b>{title}</b>\n\n{overview}\n\nUpdated successfully"
             if poster:
                 await client.send_photo(message.chat.id, poster, caption=caption)
             else:
