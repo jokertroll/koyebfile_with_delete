@@ -11,3 +11,4 @@ humanize
 pytz
 yt-dlp
 requests
+shlex
