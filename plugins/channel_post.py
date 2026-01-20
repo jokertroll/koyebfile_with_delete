@@ -12,7 +12,8 @@ admin_commands = ['start', 'users', 'broadcast', 'batch', 'genlink', 'stats', 'j
                   'music', 'premium', 'addpremium', 'listpremium', 'mypremium', 'extendpremium',
                   'revokepremium', 'trackPromo', 'generatePromo', 'resetTrial','adminHelp','put',
                   'deleteseries', 'updateseries', 'puts','pin','unpin','addc','delc',
-                  'trend','trendu','deltrend','upcome','delupcome']
+                  'trend','trendu','deltrend','upcome','delupcome','puthdtv','putcustomhdtv',
+                  'updatehdtv','deletehdtv']
 
 @Bot.on_message(filters.private & filters.user(ADMINS) & ~filters.command(admin_commands))
 async def channel_post(client: Client, message: Message):
