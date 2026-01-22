@@ -361,7 +361,14 @@ async def confirm_delete(client, message):
 
     hdtv_id = state["pending_delete"]
     res = requests.delete(f"{API_BASE}/{hdtv_id}",json={"secret": ADMIN_SECRET})
-
+    if res.status_code == 201:
+        show = res.json()["show"]
+        await send_movie_preview(
+            client,
+            message.chat.id,
+            show,
+            "✅ <b>🗑️ Deleted successfully</b>"
+        )
     if res.status_code == 200:
         await message.reply("🗑️ Deleted successfully")
     else:
