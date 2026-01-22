@@ -73,51 +73,69 @@ def parse_flags(text):
 #             parse_mode=ParseMode.HTML
 #         )
 
+async def send_hdtv_page(client, chat_id, user_id, page=1, query=None):
+    params = {"page": page, "limit": PAGE_SIZE}
+    if query:
+        params["q"] = query
 
-async def send_movie_preview(client, chat_id, show, action_text):
-    title = show.get("title", "Unknown")
-    overview = show.get("overview", "No overview available.")
-    poster = show.get("poster_path")
-    is_custom = show.get("isCustom", False)
-    tmdb_id = show.get("tmdbID")
+    res = requests.get(API_BASE, params=params)
+    if res.status_code != 200:
+        await client.send_message(chat_id, "❌ Failed to fetch HDTV list")
+        return
 
-    caption = (
-        f"🎬 <b>{title}</b>\n\n"
-        f"{overview}\n\n"
-        f"{action_text}"
+    data = res.json()
+    shows = data["results"]
+    total_pages = data["totalPages"]
+
+    if not shows:
+        await client.send_message(chat_id, "📭 No HDTV found")
+        return
+
+    USER_STATE[user_id] = {
+        "page": page,
+        "query": query,
+        "items": shows
+    }
+
+    text = f"📺 <b>HDTV LIST</b> (Page {page}/{total_pages})\n\n"
+    buttons = []
+
+    for i, s in enumerate(shows, start=1):
+        tag = "TMDB" if s.get("tmdbID") else "CUSTOM"
+        text += f"{i}. <b>{s['title']}</b> ({tag})\n"
+        buttons.append([
+            InlineKeyboardButton(
+                f"❌ Delete {i}",
+                callback_data=f"hdtv_del:{s['_id']}"
+            )
+        ])
+
+    nav = []
+    if page > 1:
+        nav.append(InlineKeyboardButton("⬅ Prev", callback_data=f"hdtv_page:{page-1}"))
+    if page < total_pages:
+        nav.append(InlineKeyboardButton("Next ➡", callback_data=f"hdtv_page:{page+1}"))
+
+    if nav:
+        buttons.append(nav)
+
+    # Send message with buttons
+    message = await client.send_message(
+        chat_id,
+        text,
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode=ParseMode.HTML
     )
 
-    # Check if the movie is custom or not
-    if not is_custom and tmdb_id:
-        # For non-custom movies, fetch the TMDB poster
-        tmdb_poster_url = f"https://image.tmdb.org/t/p/w500{poster}"  # Append the image size (w500) for standard resolution
-        try:
-            # Check if the image exists by sending a HEAD request to TMDB image URL
-            response = requests.head(tmdb_poster_url)
-            if response.status_code == 200:
-                poster = tmdb_poster_url  # Update poster with the valid TMDB image URL
-            else:
-                poster = None  # If the poster does not exist, handle it gracefully
-        except requests.RequestException as e:
-            print(f"Error fetching TMDB poster: {e}")
-            poster = None
+    # Wait for 30 seconds before removing the buttons
+    await asyncio.sleep(30)
 
-    # Send the movie preview with or without the poster
-    if poster:
-        # Send photo with caption
-        await client.send_photo(
-            chat_id,
-            poster,
-            caption=caption,
-            parse_mode=ParseMode.HTML
-        )
-    else:
-        # Send message without photo
-        await client.send_message(
-            chat_id,
-            caption,
-            parse_mode=ParseMode.HTML
-        )
+    # Edit the message to remove the buttons
+    await client.edit_message_reply_markup(
+        chat_id,
+        message.id,  # Use the message id of the original message
+        reply_markup=None  # Remove the inline buttons
+    )
 
 
 async def send_hdtv_page(client, chat_id, user_id, page=1, query=None):
