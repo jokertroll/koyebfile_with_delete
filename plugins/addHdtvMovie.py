@@ -7,12 +7,7 @@ from config import ADMINS
 
 # ================= CONFIG =================
 API_BASE = "https://christian-erminia-abhisworkspace-82b29324.koyeb.app/api/hdtv"
-ADMIN_JWT = "admin"
-
-HEADERS = {
-    "Authorization": f"Bearer {ADMIN_JWT}",
-    "Content-Type": "application/json"
-}
+ADMIN_SECRET = "admin"
 
 PAGE_SIZE = 10
 
@@ -132,6 +127,23 @@ async def send_hdtv_page(client, chat_id, user_id, page=1, query=None):
         parse_mode=ParseMode.HTML
     )
 
+def hdtv_exists(title=None, tmdb_id=None):
+    params = {}
+    if title:
+        params["q"] = title
+
+    res = requests.get(API_BASE, params=params)
+    if res.status_code != 200:
+        return False
+
+    for s in res.json().get("results", []):
+        if tmdb_id and s.get("tmdbID") == tmdb_id:
+            return True
+        if title and s.get("title", "").lower() == title.lower():
+            return True
+
+    return False
+
 # ================= COMMANDS =================
 
 @Client.on_message(filters.command("help") & filters.user(ADMINS))
@@ -202,7 +214,7 @@ async def confirm_delete(client, message):
         return
 
     hdtv_id = state["pending_delete"]
-    res = requests.delete(f"{API_BASE}/{hdtv_id}", headers=HEADERS)
+    res = requests.delete(f"{API_BASE}/{hdtv_id}",json={"secret": ADMIN_SECRET})
 
     if res.status_code == 200:
         await message.reply("🗑️ Deleted successfully")
@@ -219,15 +231,19 @@ async def add_tmdb_hdtv(client, message):
     if not cmd["tmdbID"] or not cmd["fileLink"]:
         await message.reply("❌ /puthdtv -tmdb <id> -f <file>")
         return
+    
+    if hdtv_exists(title=cmd["title"]):
+        await message.reply("⚠️ This custom show already exists")
+        return
 
     res = requests.post(
         API_BASE,
         json={
             "tmdbID": cmd["tmdbID"],
             "fileLink": cmd["fileLink"],
-            "pinned": cmd["pinned"]
-        },
-        headers=HEADERS
+            "pinned": cmd["pinned"],
+            "secret": ADMIN_SECRET,
+        }
     )
 
     if res.status_code == 201:
@@ -248,6 +264,10 @@ async def add_custom_hdtv(client, message):
     if not cmd["title"] or not cmd["fileLink"]:
         await message.reply("❌ /putcustomhdtv -title <t> -f <file>")
         return
+    
+    if hdtv_exists(title=cmd["title"]):
+        await message.reply("⚠️ This custom show already exists")
+        return
 
     res = requests.post(
         API_BASE,
@@ -258,9 +278,9 @@ async def add_custom_hdtv(client, message):
                 "poster_path": cmd["poster"]
             },
             "fileLink": cmd["fileLink"],
-            "pinned": cmd["pinned"]
-        },
-        headers=HEADERS
+            "pinned": cmd["pinned"],
+            "secret": ADMIN_SECRET,
+        }
     )
 
     if res.status_code == 201:
