@@ -256,7 +256,7 @@ def hdtv_exists(title=None, tmdb_id=None):
 
 # ================= COMMANDS =================
 
-@Client.on_message(filters.command("help") & filters.user(ADMINS))
+@Client.on_message(filters.command("hdtvhelp") & filters.user(ADMINS))
 async def help_cmd(client, message):
     await message.reply(
         "📚 <b>HDTV ADMIN COMMANDS</b>\n\n"
