@@ -73,6 +73,52 @@ def parse_flags(text):
 #             parse_mode=ParseMode.HTML
 #         )
 
+async def send_movie_preview(client, chat_id, show, action_text):
+    title = show.get("title", "Unknown")
+    overview = show.get("overview", "No overview available.")
+    poster = show.get("poster_path")
+    is_custom = show.get("isCustom", False)
+    tmdb_id = show.get("tmdbID")
+
+    caption = (
+        f"🎬 <b>{title}</b>\n\n"
+        f"{overview}\n\n"
+        f"{action_text}"
+    )
+
+    # Check if the movie is custom or not
+    if not is_custom and tmdb_id:
+        # For non-custom movies, fetch the TMDB poster
+        tmdb_poster_url = f"https://image.tmdb.org/t/p/w500{poster}"  # Append the image size (w500) for standard resolution
+        try:
+            # Check if the image exists by sending a HEAD request to TMDB image URL
+            response = requests.head(tmdb_poster_url)
+            if response.status_code == 200:
+                poster = tmdb_poster_url  # Update poster with the valid TMDB image URL
+            else:
+                poster = None  # If the poster does not exist, handle it gracefully
+        except requests.RequestException as e:
+            print(f"Error fetching TMDB poster: {e}")
+            poster = None
+
+    # Send the movie preview with or without the poster
+    if poster:
+        # Send photo with caption
+        await client.send_photo(
+            chat_id,
+            poster,
+            caption=caption,
+            parse_mode=ParseMode.HTML
+        )
+    else:
+        # Send message without photo
+        await client.send_message(
+            chat_id,
+            caption,
+            parse_mode=ParseMode.HTML
+        )
+
+
 async def send_hdtv_page(client, chat_id, user_id, page=1, query=None):
     params = {"page": page, "limit": PAGE_SIZE}
     if query:
