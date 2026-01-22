@@ -63,7 +63,7 @@ async def handle_help(client, message):
             "puthdtv": "Add/update a TMDB HDTV show. Usage: /puthdtv -tmdb 1399 -f <file> [-o f|l] [-p|-u]",
             "putcustomhdtv": "Add custom HDTV show. Usage: /putcustomhdtv -title <title> -overview <text> -poster <url> -f <file> [-o f|l] [-p|-u]",
             "updatehdtv": "Update HDTV show info. Usage: /updatehdtv -tmdb 1399 -f <file> [-o f|l] [-p|-u] OR /updatehdtv -title <title> -overview <text> -poster <url> -f <file>",
-            "deletehdtv": "Delete HDTV show. Usage: /deletehdtv -tmdb 1399",
+            "listhdtv": "Delete HDTV show. Usage: /listhdtv [search]\n\n",
         }
 
         if command_requested:
