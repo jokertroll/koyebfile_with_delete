@@ -287,36 +287,36 @@ async def send_hdtv_page(client, chat_id, user_id, page=1, query=None):
 #         parse_mode=ParseMode.HTML
 #     )
 
-async def hdtv_exists(title=None, tmdb_id=None):
-    if not title and not tmdb_id:
-        return False
+# async def hdtv_exists(title=None, tmdb_id=None):
+#     if not title and not tmdb_id:
+#         return False
 
-    params = {}
-    if title:
-        params["q"] = title
+#     params = {}
+#     if title:
+#         params["q"] = title
 
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            res = await client.get(API_BASE, params=params)
-            res.raise_for_status()
-            results = res.json().get("results", [])
-    except httpx.RequestError as e:
-        print(f"Network error checking HDTV existence: {e}")
-        return False
-    except Exception as e:
-        print(f"Error checking HDTV existence: {e}")
-        return False
+#     try:
+#         async with httpx.AsyncClient(timeout=10) as client:
+#             res = await client.get(API_BASE, params=params)
+#             res.raise_for_status()
+#             results = res.json().get("results", [])
+#     except httpx.RequestError as e:
+#         print(f"Network error checking HDTV existence: {e}")
+#         return False
+#     except Exception as e:
+#         print(f"Error checking HDTV existence: {e}")
+#         return False
 
-    for show in results:
-        if tmdb_id and show.get("tmdbID") == tmdb_id:
-            return True
-        # if title and show.get("title", "").lower() == title.lower():
-        #     return True
-        if title and show.get("title", "").strip().lower() == title.strip().lower():
-            return True
+#     for show in results:
+#         if tmdb_id and show.get("tmdbID") == tmdb_id:
+#             return True
+#         # if title and show.get("title", "").lower() == title.lower():
+#         #     return True
+#         if title and show.get("title", "").strip().lower() == title.strip().lower():
+#             return True
 
 
-    return False
+#     return False
 
 # def hdtv_exists(title=None, tmdb_id=None):
 #     params = {}
@@ -459,49 +459,115 @@ async def confirm_delete(client, message):
 
 # ================= ADD / UPDATE =================
 
-@Client.on_message(filters.command("puthdtv") & filters.user(ADMINS))
-async def add_hdtv(client, message):
-    if len(message.command) < 2:
-        return await message.reply("Usage: `/addhdtv -tmdb 123 -f link` OR `-title 'Name' -f link`")
+async def hdtv_exists(title=None, tmdb_id=None):
+    """
+    Checks if a show already exists in the database.
+    Prevents duplicates between custom and TMDB shows.
+    """
+    if not title and not tmdb_id:
+        return False
 
-    flags = parse_flags(message.text)
-    
-    # 1. Base Payload
-    payload = {
-        "file_link": flags["fileLink"], # Matches your backend var
-        "pinned": flags["pinned"] if flags["pinned"] is not None else False,
-        "position": flags["position"] or "l"  # 'f' or 'l'
-    }
-
-    # 2. Logic to structure TMDB vs CUSTOM (Crucial for your backend)
-    if flags["tmdbID"]:
-        payload["tmdbID"] = flags["tmdbID"]
-    elif flags["title"]:
-        # Nesting data inside customData as required by your new backend service
-        payload["customData"] = {
-            "title": flags["title"],
-            "overview": flags["overview"] or "No overview provided.",
-            "poster_path": flags["poster"]
-        }
-    else:
-        return await message.reply("❌ Error: Provide either `-tmdb` or `-title`.")
-
-    headers = {"admin-secret": ADMIN_SECRET}
+    params = {}
+    if title:
+        params["q"] = title  # search by title in API
 
     try:
-        # Using httpx for modern async request handling
-        async with httpx.AsyncClient() as ac:
-            response = await ac.post(API_BASE, json=payload, headers=headers)
-        
-        if response.status_code in (200, 201):
-            new_show = response.json()
-            await send_movie_preview(client, message.chat.id, new_show, "✅ Added Successfully!")
-        else:
-            # Captures the "already exists" error from your new backend logic
-            error_data = response.json()
-            error_msg = error_data.get('message', 'Unknown API Error')
-            await message.reply(f"❌ Failed: {error_msg}")
-
+        async with httpx.AsyncClient(timeout=10) as client:
+            res = await client.get(API_BASE, params=params)
+            res.raise_for_status()
+            results = res.json().get("results", [])
     except Exception as e:
-        await message.reply(f"❌ Connection Error: {str(e)}")
+        print(f"Error checking HDTV existence: {e}")
+        return False
+
+    title_lower = title.strip().lower() if title else None
+
+    for show in results:
+        # Check TMDB ID
+        if tmdb_id and show.get("tmdbID") == tmdb_id:
+            return True
+
+        # Check title for duplicates
+        if title_lower and show.get("title", "").strip().lower() == title_lower:
+            return True
+
+    return False
+
+
+# ================= ADD / UPDATE =================
+
+@Client.on_message(filters.command("puthdtv") & filters.user(ADMINS))
+async def add_tmdb_hdtv(client, message):
+    cmd = parse_flags(message.text)
+    if not cmd["tmdbID"] or not cmd["fileLink"]:
+        await message.reply("❌ Usage: /puthdtv -tmdb <id> -f <file>")
+        return
+
+    # FIXED: Check TMDB ID + optional title to prevent duplicates
+    if await hdtv_exists(tmdb_id=cmd["tmdbID"], title=cmd.get("title")):
+        await message.reply("⚠️ This show already exists")
+        return
+
+    res = requests.post(
+        API_BASE,
+        json={
+            "tmdbID": cmd["tmdbID"],
+            "fileLink": cmd["fileLink"],
+            "pinned": cmd["pinned"],
+            "position": cmd["position"],
+            "secret": ADMIN_SECRET,
+        }
+    )
+
+    if res.status_code == 201:
+        show = res.json()["show"]
+        action_text = "✅ <b>HDTV Added Successfully</b>"
+        if cmd["position"] == "f":
+            action_text += "\n📌 Position: First"
+        elif cmd["position"] == "l":
+            action_text += "\n📌 Position: Last"
+
+        await send_movie_preview(client, message.chat.id, show, action_text)
+    else:
+        await message.reply(f"❌ Failed:\n<code>{res.text}</code>")
+
+
+@Client.on_message(filters.command("putcustomhdtv") & filters.user(ADMINS))
+async def add_custom_hdtv(client, message):
+    cmd = parse_flags(message.text)
+    if not cmd["title"] or not cmd["fileLink"]:
+        await message.reply("❌ Usage: /putcustomhdtv -title <t> -f <file>")
+        return
+
+    # FIXED: Check by title to prevent duplicate custom shows
+    if await hdtv_exists(title=cmd["title"]):
+        await message.reply("⚠️ This custom show already exists")
+        return
+
+    res = requests.post(
+        API_BASE,
+        json={
+            "customData": {
+                "title": cmd["title"],
+                "overview": cmd["overview"],
+                "poster_path": cmd["poster"]
+            },
+            "fileLink": cmd["fileLink"],
+            "pinned": cmd["pinned"],
+            "position": cmd["position"],
+            "secret": ADMIN_SECRET,
+        }
+    )
+
+    if res.status_code == 201:
+        show = res.json()["show"]
+        action_text = "✅ <b>Custom HDTV Added Successfully</b>"
+        if cmd["position"] == "f":
+            action_text += "\n📌 Position: First"
+        elif cmd["position"] == "l":
+            action_text += "\n📌 Position: Last"
+
+        await send_movie_preview(client, message.chat.id, show, action_text)
+    else:
+        await message.reply(f"❌ Failed:\n<code>{res.text}</code>")
 
