@@ -460,87 +460,48 @@ async def confirm_delete(client, message):
 # ================= ADD / UPDATE =================
 
 @Client.on_message(filters.command("puthdtv") & filters.user(ADMINS))
-async def add_tmdb_hdtv(client, message):
-    cmd = parse_flags(message.text)
-    if not cmd["tmdbID"] or not cmd["fileLink"]:
-        await message.reply("❌ /puthdtv -tmdb <id> -f <file>")
-        return
+async def add_hdtv(client, message):
+    if len(message.command) < 2:
+        return await message.reply("Usage: `/addhdtv -tmdb 123 -f link` OR `-title 'Name' -f link`")
+
+    flags = parse_flags(message.text)
     
-    if hdtv_exists(title=cmd["title"]):
-        await message.reply("⚠️ This custom show already exists")
-        return
+    # 1. Base Payload
+    payload = {
+        "file_link": flags["fileLink"], # Matches your backend var
+        "pinned": flags["pinned"] if flags["pinned"] is not None else False,
+        "position": flags["position"] or "l"  # 'f' or 'l'
+    }
 
-    res = requests.post(
-        API_BASE,
-        json={
-            "tmdbID": cmd["tmdbID"],
-            "fileLink": cmd["fileLink"],
-            "pinned": cmd["pinned"],
-            "position": cmd["position"],
-            "secret": ADMIN_SECRET,
+    # 2. Logic to structure TMDB vs CUSTOM (Crucial for your backend)
+    if flags["tmdbID"]:
+        payload["tmdbID"] = flags["tmdbID"]
+    elif flags["title"]:
+        # Nesting data inside customData as required by your new backend service
+        payload["customData"] = {
+            "title": flags["title"],
+            "overview": flags["overview"] or "No overview provided.",
+            "poster_path": flags["poster"]
         }
-    )
-
-    if res.status_code == 201:
-        show = res.json()["show"]
-
-        action_text = "✅ <b>HDTV Added Successfully</b>"
-
-        if cmd["position"] == "f":
-            action_text += "\n📌 Position: First"
-        elif cmd["position"] == "l":
-            action_text += "\n📌 Position: Last"
-
-        await send_movie_preview(
-            client,
-            message.chat.id,
-            show,
-            action_text
-        )
     else:
-        await message.reply(f"❌ Failed:\n<code>{res.text}</code>")
+        return await message.reply("❌ Error: Provide either `-tmdb` or `-title`.")
 
+    headers = {"admin-secret": ADMIN_SECRET}
 
-@Client.on_message(filters.command("putcustomhdtv") & filters.user(ADMINS))
-async def add_custom_hdtv(client, message):
-    cmd = parse_flags(message.text)
-    if not cmd["title"] or not cmd["fileLink"]:
-        await message.reply("❌ /putcustomhdtv -title <t> -f <file>")
-        return
-    
-    if hdtv_exists(title=cmd["title"]):
-        await message.reply("⚠️ This custom show already exists")
-        return
+    try:
+        # Using httpx for modern async request handling
+        async with httpx.AsyncClient() as ac:
+            response = await ac.post(API_BASE, json=payload, headers=headers)
+        
+        if response.status_code in (200, 201):
+            new_show = response.json()
+            await send_movie_preview(client, message.chat.id, new_show, "✅ Added Successfully!")
+        else:
+            # Captures the "already exists" error from your new backend logic
+            error_data = response.json()
+            error_msg = error_data.get('message', 'Unknown API Error')
+            await message.reply(f"❌ Failed: {error_msg}")
 
-    res = requests.post(
-        API_BASE,
-        json={
-            "customData": {
-                "title": cmd["title"],
-                "overview": cmd["overview"],
-                "poster_path": cmd["poster"]
-            },
-            "fileLink": cmd["fileLink"],
-            "pinned": cmd["pinned"],
-            "position": cmd["position"],
-            "secret": ADMIN_SECRET,
-        }
-    )
+    except Exception as e:
+        await message.reply(f"❌ Connection Error: {str(e)}")
 
-    if res.status_code == 201:
-        show = res.json()["show"]
-
-        action_text = "✅ <b> Custom HDTV Added Successfully</b>" 
-        if cmd["position"] == "f":
-            action_text += "\n📌 Position: First"
-        elif cmd["position"] == "l":
-            action_text += "\n📌 Position: Last"
-
-        await send_movie_preview(
-            client,
-            message.chat.id,
-            show,
-            action_text
-        )
-    else:
-        await message.reply(f"❌ Failed:\n<code>{res.text}</code>")
