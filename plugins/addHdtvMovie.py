@@ -1,5 +1,7 @@
 import requests
 import shlex
+import asyncio
+import httpx
 from pyrogram import Client, filters
 from pyrogram.enums import ParseMode
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -15,7 +17,7 @@ PAGE_SIZE = 10
 USER_STATE = {}
 
 # ================= HELPERS =================
-
+# Adding insert at first or last logic
 def parse_flags(text):
     tokens = shlex.split(text)
     data = {
@@ -24,29 +26,77 @@ def parse_flags(text):
         "title": None,
         "overview": None,
         "poster": None,
-        "pinned": None
+        "pinned": None,
+        "position": None   # 👈 ADD THIS
     }
 
     i = 0
     while i < len(tokens):
         t = tokens[i]
+
         if t == "-tmdb" and i + 1 < len(tokens):
             data["tmdbID"] = int(tokens[i + 1]); i += 2; continue
+
         if t == "-f" and i + 1 < len(tokens):
             data["fileLink"] = tokens[i + 1]; i += 2; continue
+
         if t == "-title" and i + 1 < len(tokens):
             data["title"] = tokens[i + 1]; i += 2; continue
+
         if t == "-overview" and i + 1 < len(tokens):
             data["overview"] = tokens[i + 1]; i += 2; continue
+
         if t == "-poster" and i + 1 < len(tokens):
             data["poster"] = tokens[i + 1]; i += 2; continue
+
         if t == "-p":
             data["pinned"] = True; i += 1; continue
+
         if t == "-u":
             data["pinned"] = False; i += 1; continue
+
+        # 🔥 NEW: position flag
+        if t == "-o" and i + 1 < len(tokens):
+            if tokens[i + 1] in ("f", "l"):
+                data["position"] = tokens[i + 1]
+            i += 2; continue
+
         i += 1
 
     return data
+
+
+# def parse_flags(text):
+#     tokens = shlex.split(text)
+#     data = {
+#         "tmdbID": None,
+#         "fileLink": None,
+#         "title": None,
+#         "overview": None,
+#         "poster": None,
+#         "pinned": None
+#     }
+
+#     i = 0
+#     while i < len(tokens):
+#         t = tokens[i]
+#         if t == "-tmdb" and i + 1 < len(tokens):
+#             data["tmdbID"] = int(tokens[i + 1]); i += 2; continue
+#         if t == "-f" and i + 1 < len(tokens):
+#             data["fileLink"] = tokens[i + 1]; i += 2; continue
+#         if t == "-title" and i + 1 < len(tokens):
+#             data["title"] = tokens[i + 1]; i += 2; continue
+#         if t == "-overview" and i + 1 < len(tokens):
+#             data["overview"] = tokens[i + 1]; i += 2; continue
+#         if t == "-poster" and i + 1 < len(tokens):
+#             data["poster"] = tokens[i + 1]; i += 2; continue
+#         if t == "-p":
+#             data["pinned"] = True; i += 1; continue
+#         if t == "-u":
+#             data["pinned"] = False; i += 1; continue
+#         i += 1
+
+#     return data
 
 # async def send_movie_preview(client, chat_id, show, action_text):
 #     title = show.get("title", "Unknown")
@@ -184,75 +234,106 @@ async def send_hdtv_page(client, chat_id, user_id, page=1, query=None):
     )
 
 
-async def send_hdtv_page(client, chat_id, user_id, page=1, query=None):
-    params = {"page": page, "limit": PAGE_SIZE}
-    if query:
-        params["q"] = query
+# async def send_hdtv_page(client, chat_id, user_id, page=1, query=None):
+#     params = {"page": page, "limit": PAGE_SIZE}
+#     if query:
+#         params["q"] = query
 
-    res = requests.get(API_BASE, params=params)
-    if res.status_code != 200:
-        await client.send_message(chat_id, "❌ Failed to fetch HDTV list")
-        return
+#     res = requests.get(API_BASE, params=params)
+#     if res.status_code != 200:
+#         await client.send_message(chat_id, "❌ Failed to fetch HDTV list")
+#         return
 
-    data = res.json()
-    shows = data["results"]
-    total_pages = data["totalPages"]
+#     data = res.json()
+#     shows = data["results"]
+#     total_pages = data["totalPages"]
 
-    if not shows:
-        await client.send_message(chat_id, "📭 No HDTV found")
-        return
+#     if not shows:
+#         await client.send_message(chat_id, "📭 No HDTV found")
+#         return
 
-    USER_STATE[user_id] = {
-        "page": page,
-        "query": query,
-        "items": shows
-    }
+#     USER_STATE[user_id] = {
+#         "page": page,
+#         "query": query,
+#         "items": shows
+#     }
 
-    text = f"📺 <b>HDTV LIST</b> (Page {page}/{total_pages})\n\n"
-    buttons = []
+#     text = f"📺 <b>HDTV LIST</b> (Page {page}/{total_pages})\n\n"
+#     buttons = []
 
-    for i, s in enumerate(shows, start=1):
-        tag = "TMDB" if s.get("tmdbID") else "CUSTOM"
-        text += f"{i}. <b>{s['title']}</b> ({tag})\n"
-        buttons.append([
-            InlineKeyboardButton(
-                f"❌ Delete {i}",
-                callback_data=f"hdtv_del:{s['_id']}"
-            )
-        ])
+#     for i, s in enumerate(shows, start=1):
+#         tag = "TMDB" if s.get("tmdbID") else "CUSTOM"
+#         text += f"{i}. <b>{s['title']}</b> ({tag})\n"
+#         buttons.append([
+#             InlineKeyboardButton(
+#                 f"❌ Delete {i}",
+#                 callback_data=f"hdtv_del:{s['_id']}"
+#             )
+#         ])
 
-    nav = []
-    if page > 1:
-        nav.append(InlineKeyboardButton("⬅ Prev", callback_data=f"hdtv_page:{page-1}"))
-    if page < total_pages:
-        nav.append(InlineKeyboardButton("Next ➡", callback_data=f"hdtv_page:{page+1}"))
+#     nav = []
+#     if page > 1:
+#         nav.append(InlineKeyboardButton("⬅ Prev", callback_data=f"hdtv_page:{page-1}"))
+#     if page < total_pages:
+#         nav.append(InlineKeyboardButton("Next ➡", callback_data=f"hdtv_page:{page+1}"))
 
-    if nav:
-        buttons.append(nav)
+#     if nav:
+#         buttons.append(nav)
 
-    await client.send_message(
-        chat_id,
-        text,
-        reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode=ParseMode.HTML
-    )
+#     await client.send_message(
+#         chat_id,
+#         text,
+#         reply_markup=InlineKeyboardMarkup(buttons),
+#         parse_mode=ParseMode.HTML
+#     )
 
-def hdtv_exists(title=None, tmdb_id=None):
+async def hdtv_exists(title=None, tmdb_id=None):
+    if not title and not tmdb_id:
+        return False
+
     params = {}
     if title:
         params["q"] = title
 
-    res = requests.get(API_BASE, params=params)
-    if res.status_code != 200:
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            res = await client.get(API_BASE, params=params)
+            res.raise_for_status()
+            results = res.json().get("results", [])
+    except httpx.RequestError as e:
+        print(f"Network error checking HDTV existence: {e}")
+        return False
+    except Exception as e:
+        print(f"Error checking HDTV existence: {e}")
         return False
 
-    for s in res.json().get("results", []):
-        if tmdb_id and s.get("tmdbID") == tmdb_id:
+    for show in results:
+        if tmdb_id and show.get("tmdbID") == tmdb_id:
             return True
-        if title and s.get("title", "").lower() == title.lower():
+        # if title and show.get("title", "").lower() == title.lower():
+        #     return True
+        if title and show.get("title", "").strip().lower() == title.strip().lower():
             return True
 
+
     return False
+
+# def hdtv_exists(title=None, tmdb_id=None):
+#     params = {}
+#     if title:
+#         params["q"] = title
+
+#     res = requests.get(API_BASE, params=params)
+#     if res.status_code != 200:
+#         return False
+
+#     for s in res.json().get("results", []):
+#         if tmdb_id and s.get("tmdbID") == tmdb_id:
+#             return True
+#         if title and s.get("title", "").lower() == title.lower():
+#             return True
+
+#     return False
 
 # ================= COMMANDS =================
 
@@ -395,17 +476,26 @@ async def add_tmdb_hdtv(client, message):
             "tmdbID": cmd["tmdbID"],
             "fileLink": cmd["fileLink"],
             "pinned": cmd["pinned"],
+            "position": cmd["position"],
             "secret": ADMIN_SECRET,
         }
     )
 
     if res.status_code == 201:
         show = res.json()["show"]
+
+        action_text = "✅ <b>HDTV Added Successfully</b>"
+
+        if cmd["position"] == "f":
+            action_text += "\n📌 Position: First"
+        elif cmd["position"] == "l":
+            action_text += "\n📌 Position: Last"
+
         await send_movie_preview(
             client,
             message.chat.id,
             show,
-            "✅ <b>HDTV Added Successfully</b>"
+            action_text
         )
     else:
         await message.reply(f"❌ Failed:\n<code>{res.text}</code>")
@@ -432,17 +522,25 @@ async def add_custom_hdtv(client, message):
             },
             "fileLink": cmd["fileLink"],
             "pinned": cmd["pinned"],
+            "position": cmd["position"],
             "secret": ADMIN_SECRET,
         }
     )
 
     if res.status_code == 201:
         show = res.json()["show"]
+
+        action_text = "✅ <b> Custom HDTV Added Successfully</b>" 
+        if cmd["position"] == "f":
+            action_text += "\n📌 Position: First"
+        elif cmd["position"] == "l":
+            action_text += "\n📌 Position: Last"
+
         await send_movie_preview(
             client,
             message.chat.id,
             show,
-            "✅ <b>Custom HDTV Added</b>"
+            action_text
         )
     else:
         await message.reply(f"❌ Failed:\n<code>{res.text}</code>")
