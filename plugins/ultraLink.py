@@ -1,11 +1,11 @@
-# ====== 4K COMMAND HANDLERS (drop-in for your existing bot) ======
 import asyncio
 import requests
 from pyrogram import Client, filters
+from pyrogram.enums import ParseMode
 from config import ADMINS
 
 API_BASE = "https://christian-erminia-abhisworkspace-82b29324.koyeb.app/api"
-ADMIN_SECRET = "admin"  # use env var in prod if you want security
+ADMIN_SECRET = "admin"
 
 
 # ---------------- safe requests wrapper ----------------
@@ -15,7 +15,9 @@ def post_sync(url, payload):
 
 # ---------------- Helper: parse flags ----------------
 def parse_4k_flags(text: str):
-    tokens = text.split()
+
+    tokens = text.split()[1:]  # remove command itself
+
     data = {
         "tmdbID": None,
         "fileLink": None,
@@ -23,8 +25,10 @@ def parse_4k_flags(text: str):
         "size": None,
         "delete": False
     }
+
     i = 0
     while i < len(tokens):
+
         token = tokens[i]
 
         if token == "-tmdb" and i + 1 < len(tokens):
@@ -57,15 +61,18 @@ def parse_4k_flags(text: str):
     return data
 
 
-# ---------------- Helper: send movie info ----------------
+# ---------------- send movie info ----------------
 async def send_movie_info(client, chat_id, movie, action="Updated"):
+
     title = movie.get("title", "Unknown")
     overview = movie.get("overview", "No overview available.")
     poster = movie.get("poster_path")
 
     flags = []
+
     if movie.get("order") == 0:
         flags.append("⬆ First")
+
     if movie.get("pinned") is True:
         flags.append("⭐ Pinned")
     elif movie.get("pinned") is False:
@@ -85,18 +92,28 @@ async def send_movie_info(client, chat_id, movie, action="Updated"):
             chat_id,
             f"https://image.tmdb.org/t/p/w500{poster}",
             caption=caption,
-            parse_mode="html"
+            parse_mode=ParseMode.HTML
         )
     else:
-        await client.send_message(chat_id, caption, parse_mode="html")
+        await client.send_message(
+            chat_id,
+            caption,
+            parse_mode=ParseMode.HTML
+        )
 
 
 # ---------------- PUT 4K ----------------
 @Client.on_message(filters.command("put4k") & filters.user(ADMINS))
 async def put4k_handler(client, message):
+
     try:
-        if not message.text:
-            await message.reply("❌ Usage:\n/put4k -tmdb 550 [-f link] [-i t|f] [-s 12GB] [-d]")
+
+        # check if arguments exist
+        if len(message.command) == 1:
+            await message.reply(
+                "❌ Usage:\n"
+                "/put4k -tmdb 550 [-f link] [-i t|f] [-s 12GB] [-d]"
+            )
             return
 
         cmd = parse_4k_flags(message.text)
@@ -128,7 +145,6 @@ async def put4k_handler(client, message):
             "secret": ADMIN_SECRET
         }
 
-        # run requests in thread so it doesn't block async
         res = await asyncio.to_thread(
             post_sync,
             f"{API_BASE}/admin/put4k",
@@ -136,36 +152,61 @@ async def put4k_handler(client, message):
         )
 
         if res.status_code == 200:
+
             movie = res.json().get("movie")
+
             if movie:
-                await send_movie_info(client, message.chat.id, movie, "Ultra link added/updated")
+                await send_movie_info(
+                    client,
+                    message.chat.id,
+                    movie,
+                    "Ultra link added/updated"
+                )
             else:
                 await message.reply("✅ Ultra link added/updated.")
+
         else:
-            await message.reply(f"❌ Failed:\n<code>{res.text}</code>", parse_mode="html")
+            await message.reply(
+                f"❌ Failed:\n<code>{res.text}</code>",
+                parse_mode=ParseMode.HTML
+            )
 
     except Exception as e:
-        await message.reply(f"❌ Error: <code>{e}</code>", parse_mode="html")
+
+        await message.reply(
+            f"❌ Error: <code>{e}</code>",
+            parse_mode=ParseMode.HTML
+        )
 
 
-# ---------------- DEL 4K (manual command) ----------------
+# ---------------- DEL 4K ----------------
 @Client.on_message(filters.command("del4k") & filters.user(ADMINS))
 async def del4k_handler(client, message):
+
     try:
-        tokens = message.text.split()
-        if len(tokens) < 3 or tokens[1].lower() != "-tmdb":
-            await message.reply("❌ Usage:\n/del4k -tmdb [TMDbID]")
+
+        if len(message.command) < 3 or message.command[1] != "-tmdb":
+
+            await message.reply(
+                "❌ Usage:\n/del4k -tmdb 550"
+            )
             return
 
-        tmdbID = int(tokens[2])
+        tmdbID = int(message.command[2])
+
         await del4k_direct(client, tmdbID, message)
 
     except Exception as e:
-        await message.reply(f"❌ Error: <code>{e}</code>", parse_mode="html")
+
+        await message.reply(
+            f"❌ Error: <code>{e}</code>",
+            parse_mode=ParseMode.HTML
+        )
 
 
-# ---------------- DELETE LOGIC USED BY BOTH ----------------
+# ---------------- DELETE LOGIC ----------------
 async def del4k_direct(client, tmdbID, message):
+
     payload = {
         "tmdbID": tmdbID,
         "ultraLink": None,
@@ -179,12 +220,24 @@ async def del4k_direct(client, tmdbID, message):
     )
 
     if res.status_code == 200:
-        movie = res.json().get("movie")
-        if movie:
-            await send_movie_info(client, message.chat.id, movie, "Ultra link deleted")
-        else:
-            await message.reply(f"✅ Ultra link deleted for TMDbID {tmdbID}")
-    else:
-        await message.reply(f"❌ Failed to delete:\n<code>{res.text}</code>", parse_mode="html")
 
-# ====== END ======
+        movie = res.json().get("movie")
+
+        if movie:
+            await send_movie_info(
+                client,
+                message.chat.id,
+                movie,
+                "Ultra link deleted"
+            )
+        else:
+            await message.reply(
+                f"✅ Ultra link deleted for TMDbID {tmdbID}"
+            )
+
+    else:
+
+        await message.reply(
+            f"❌ Failed to delete:\n<code>{res.text}</code>",
+            parse_mode=ParseMode.HTML
+        )
